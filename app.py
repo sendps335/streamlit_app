@@ -1,185 +1,116 @@
-import json
-import string
-import sys
-
 import streamlit as st
+import string
+import time
+import dataclasses
 
-VERSION = "0.3.3"
+# [start] [persistent states]__________________________________________
+@dataclasses.dataclass
+class gameState:
+    # HangMan
+    hm_word: str = ""
+    hm_word_letters = set(hm_word)
+    hm_alphabet = set(string.ascii_uppercase)
+    hm_used_letters = set()
+    hm_word_list = []
+    hm_n_lifes: int = 10
+    hm_idxml_key: int = 0
 
-st.set_page_config(
-    page_title="Wordle Solver",
-    page_icon="favicon.png",
-    menu_items={
-        "About": f"Wordle Solver v{VERSION}  "
-        f"\nApp contact: [Siddhant Sadangi](mailto:siddhant.sadangi@gmail.com)",
-        "Report a Bug": "https://github.com/SiddhantSadangi/WordleSolver/issues/new",
-        "Get help": None,
-    },
-)
 
-# ---------- SIDEBAR ----------
-with open("sidebar.html", "r", encoding="UTF-8") as sidebar_file:
-    sidebar_html = sidebar_file.read().replace("{VERSION}", VERSION)
+@st.cache(allow_output_mutation=True)
+def _gameState() -> gameState:
+    return gameState()
 
-with st.sidebar:
-    st.header("Instructions")
-    st.info(
-        "1. Visit any wordle app/site (for example, the [original](https://www.nytimes.com/games/wordle/index.html))\n"
-        "2. Enter the length of the word\n"
-        "3. Enter the word suggested by the solver in the wordle app\n"
-        "4. Enter the result of the attempt as a sequence of colors: b (black), y (yellow), or g (green)\n"
-        "5. Repeat steps 3 and 4 till you find a solution"
+
+hm = _gameState()
+
+
+# [start] [HangMan]____________________________________________________
+
+
+def HangMan():
+    hm.hm_word = 'CROSTON'
+    hm.hm_word_letters = set(hm.hm_word)
+    if hm.hm_word != "":
+        st.sidebar.success("**Game in progress...**")
+
+    word_list = [letter if letter in hm.hm_used_letters else "-" for letter in hm.hm_word]
+
+    st.sidebar.markdown("___")
+    b_reset, b_show_answer = st.sidebar.columns([3, 3])
+    show_answer = b_show_answer.button("🔍 Show Answer 🔭")
+
+    st.markdown(
+        f"""
+        <br>
+        <h4>
+        This word is related to something to our recent project😉😉
+        </h4>
+            You have used these letters: {" ".join(hm.hm_used_letters)}
+            <br>
+            You have {hm.hm_n_lifes} lives left
+            <br>
+            Current word: {"".join(word_list)}
+        <br>
+        """,
+        unsafe_allow_html=True,
     )
-    st.image(
-        "example.png",
-        caption="For example, enter 'ybgyy' if the result looks like this",
-    )
-    st.components.v1.html(sidebar_html, height=450)
+    holder1, holder2, holder3 = st.empty(), st.empty(), st.empty()
+    user_letter = holder1.text_input(
+        "Guess a letter:", max_chars=1, key=str(hm.hm_idxml_key + 1)
+    ).upper()
 
-# ---------- HEADER ----------
-st.title("Welcome to Wordle Solver!")
+    if (
+        len(hm.hm_word_letters) > 0 and hm.hm_n_lifes > 0 and user_letter != ""
+    ) and hm.hm_word and len(word_list) != len(hm.hm_word):
 
-# ---------- CALCULATE WORD WEIGHTS ----------
-with open("words.txt", "r") as f:
-    words = json.load(f)
-
-length = st.number_input(
-    "Enter word length", min_value=2, max_value=max(map(len, words)), value=5
-)
-
-filtered_words = [word for word in words if len(word) == length]
-
-# Getting number of times each letter occurs in the corpus
-alpha_weights = {k: 0 for k in string.ascii_lowercase}
-
-for alpha in string.ascii_lowercase:
-    for word in filtered_words:
-        alpha_weights[alpha] += word.count(alpha)
-
-# Getting weight of each word
-word_weights = {k: 0 for k in filtered_words}
-
-for word in word_weights:
-    for alpha in word:
-        word_weights[word] += alpha_weights[alpha]
-
-# Multiplying weight by number of distinct letters in the word
-# (To penalise duplication of letters so that we can eliminate letters faster)
-for word in word_weights:
-    word_weights[word] *= len(set(word))
-
-filtered_words = word_weights.copy()
-
-# ---------- RUN THE LOOP ----------
-
-i = 1
-
-try:
-    while filtered_words:
-        word = sorted(filtered_words.items(), key=lambda item: item[1], reverse=True)[
-            0
-        ][0]
-
-        lcol, rcol = st.columns(2)
-        lcol.subheader(f"Attempt: {i}")
-        rcol.subheader(f"Enter: {word.upper()}")
-
-        result = st.text_input(
-            "Enter result colors",
-            placeholder="b" * length,
-            max_chars=length,
-            key=i,
-            help="Enter the result for each letter in the format: Black: b | Yellow: y | Green: g",
-        ).lower()
-
-        # Result validation
-        if len(result) != length:
-            st.warning(
-                f"Result string must be {length} letters long. Please correct results"
-            )
-            sys.exit()
-
-        elif any(letter for letter in result if letter not in ("b", "y", "g")):
-            st.warning(
-                "Valid letters are b (black), y (yellow), or g (green). Please correct results"
-            )
-            sys.exit()
-
-        # Solved
-        if result == "g" * length:
-            st.success(f"Solved in {i} attempts!")
-            st.balloons()
-            break
-
-        correct, exclude, include = {}, {}, {}
-
-        for idx, res in enumerate(result):
-            if res == "b":
-                exclude[idx] = word[idx]
-            elif res == "g":
-                correct[idx] = word[idx]
+        if user_letter in hm.hm_alphabet - hm.hm_used_letters:
+            hm.hm_used_letters.add(user_letter)
+            if user_letter in hm.hm_word_letters:
+                hm.hm_word_letters.remove(user_letter)
+                holder2.success("Good guess. Keep going!")
             else:
-                include[idx] = word[idx]
+                holder2.error("Character is not in word. Try again!")
+                hm.hm_n_lifes -= 1
 
-        only_excluded = {
-            letter for letter in exclude.values() if letter not in correct.values()
-        }
+        elif user_letter in hm.hm_used_letters:
+            holder2.info("You have already used that character. Try again!")
 
-        # Removing words which contain any of the only excluded letters
-        filtered_words = {
-            k: v for k, v in filtered_words.items() if not only_excluded.intersection(k)
-        }
+        elif user_letter not in hm.hm_alphabet and user_letter != "":
+            holder2.error("Invalid character. Try again!")
 
-        # Removing words which contain excluded letters in excluded positions
-        tmp_dict = filtered_words.copy()
-        if exclude:
-            for w in filtered_words:
-                for idx, l in exclude.items():
-                    if w[idx] == l:
-                        del tmp_dict[w]
-                        break
+    elif (
+        len(hm.hm_word_letters) == 0 or hm.hm_n_lifes == 0 or show_answer
+    ) and hm.hm_word:
+        holder1.empty()
 
-        filtered_words = tmp_dict.copy()
+        if "".join(word_list) == hm.hm_word:
+            holder1.success(
+                f"\nCongratulations! You guessed the word [{hm.hm_word}] correctly!!"
+            )
+            st.balloons()
+        else:
+            holder2.info(f"The word is {hm.hm_word}")
+            holder3.error("Game over! Try again!")
+            time.sleep(1)
 
-        # Removing words which don't contain correct letters in correct position
-        tmp_dict = filtered_words.copy()
+    time.sleep(1)
 
-        if correct:
-            for w in filtered_words:
-                for idx, l in correct.items():
-                    if w[idx] != l:
-                        del tmp_dict[w]
-                        break
+    if user_letter != "":
+        hm.hm_idxml_key += 1
+        st.experimental_rerun()
 
-        filtered_words = tmp_dict.copy()
+    if b_reset.button("🛑 Reset Game ⚙") or show_answer:
+        hm.hm_word = ""
+        hm.hm_word_letters = set(hm.hm_word)
+        hm.hm_used_letters = set()
+        hm.hm_word_list = []
+        hm.hm_n_lifes = 6
+        hm.hm_idxml_key += 1
+        st.experimental_rerun()
 
-        # Removing words which don't contain all the included letters
-        tmp_dict = filtered_words.copy()
+    st.sidebar.markdown("""___""")
+    st.markdown("""___""")
 
-        if include:
-            for w in filtered_words:
-                if any(letter for letter in include.values() if letter not in w):
-                    del tmp_dict[w]
-                else:
-                    # Removing words which contain included letters in excluded positions
-                    for idx, l in include.items():
-                        if w[idx] == l:
-                            del tmp_dict[w]
-                            break
 
-        filtered_words = tmp_dict.copy()
-
-        i += 1
-
-    else:
-        st.error(
-            "We cannot seem to find a solution. Are you sure the results entered are correct?"
-        )
-
-except TypeError:
-    st.warning(
-        "Waiting for input. Please refresh the page if you feel something is wrong."
-    )
-
-except SystemExit:
-    pass
+if __name__ == "__main__":
+    HangMan()
