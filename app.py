@@ -12,7 +12,7 @@ class gameState:
     hm_alphabet = set(string.ascii_uppercase)
     hm_used_letters = set()
     hm_word_list = []
-    hm_n_lifes: int = 10
+    hm_n_lifes: int = 7
     hm_idxml_key: int = 0
 
 
@@ -27,7 +27,7 @@ hm = _gameState()
 # [start] [HangMan]____________________________________________________
 
 
-def HangMan():
+def HangManGame():
     hm.hm_word = 'CROSTON'
     hm.hm_word_letters = set(hm.hm_word)
     if hm.hm_word != "":
@@ -61,11 +61,19 @@ def HangMan():
 
     if (
         len(hm.hm_word_letters) > 0 and hm.hm_n_lifes > 0 and user_letter != ""
-    ) and hm.hm_word and len(word_list) != len(hm.hm_word):
+    ) and hm.hm_word:
 
         if user_letter in hm.hm_alphabet - hm.hm_used_letters:
             hm.hm_used_letters.add(user_letter)
-            if user_letter in hm.hm_word_letters:
+            word_list = [letter if letter in hm.hm_used_letters else "-" for letter in hm.hm_word]
+            if "".join(word_list) == hm.hm_word:
+                holder1.success(
+                f"\nCongratulations! You guessed the word [{hm.hm_word}] correctly!!"
+                )
+                holder2.info(f'Your Score is {hm.hm_n_lifes+1}')
+                st.balloons()  
+                time.sleep(10)          
+            elif user_letter in hm.hm_word_letters:
                 hm.hm_word_letters.remove(user_letter)
                 holder2.success("Good guess. Keep going!")
             else:
@@ -80,16 +88,18 @@ def HangMan():
 
     elif (
         len(hm.hm_word_letters) == 0 or hm.hm_n_lifes == 0 or show_answer
-    ) and hm.hm_word:
+    ) and hm.hm_word and len(word_list) == len(hm.hm_word):
         holder1.empty()
 
         if "".join(word_list) == hm.hm_word:
             holder1.success(
                 f"\nCongratulations! You guessed the word [{hm.hm_word}] correctly!!"
             )
+            holder2.info(f'Your Score is {hm.hm_n_lifes+1}')
             st.balloons()
+            time.sleep(10)
         else:
-            holder2.info(f"The word is {hm.hm_word}")
+            holder2.info(f"The word is {hm.hm_word},Your Score is {hm.hm_n_lifes+1}")
             holder3.error("Game over! Try again!")
             time.sleep(1)
 
@@ -104,13 +114,13 @@ def HangMan():
         hm.hm_word_letters = set(hm.hm_word)
         hm.hm_used_letters = set()
         hm.hm_word_list = []
-        hm.hm_n_lifes = 6
+        hm.hm_n_lifes = 7
         hm.hm_idxml_key += 1
-        st.experimental_rerun()
+        st.rerun()
 
     st.sidebar.markdown("""___""")
     st.markdown("""___""")
 
 
 if __name__ == "__main__":
-    HangMan()
+    HangManGame()
